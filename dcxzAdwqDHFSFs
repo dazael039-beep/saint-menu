@@ -4530,6 +4530,257 @@ function Menu.Build()
             end
         end
     end)
+    
+    do
+        local ContextActionService = game:GetService("ContextActionService")
+        local fcRunning = false
+        local Camera = workspace.CurrentCamera
+        local cameraPos = Vector3.new()
+        local cameraRot = Vector2.new()
+        local cameraFov = 70
+        
+        workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+            local newCamera = workspace.CurrentCamera
+            if newCamera then
+                Camera = newCamera
+            end
+        end)
+        
+        local INPUT_PRIORITY = Enum.ContextActionPriority.High.Value
+        
+        local Spring = {}
+        Spring.__index = Spring
+        
+        function Spring.new(freq, pos)
+            local self = setmetatable({}, Spring)
+            self.f = freq
+            self.p = pos
+            self.v = pos*0
+            return self
+        end
+        
+        function Spring:Update(dt, goal)
+            local f = self.f*2*math.pi
+            local p0 = self.p
+            local v0 = self.v
+            local offset = goal - p0
+            local decay = math.exp(-f*dt)
+            local p1 = goal + (v0*dt - offset*(f*dt + 1))*decay
+            local v1 = (f*dt*(offset*f - v0) + v0)*decay
+            self.p = p1
+            self.v = v1
+            return p1
+        end
+        
+        function Spring:Reset(pos)
+            self.p = pos
+            self.v = pos*0
+        end
+        
+        local velSpring = Spring.new(5, Vector3.new())
+        local panSpring = Spring.new(5, Vector2.new())
+        
+        local keyboard = {
+            W = 0, A = 0, S = 0, D = 0, E = 0, Q = 0, Up = 0, Down = 0, LeftShift = 0,
+        }
+        
+        local mouse = {
+            Delta = Vector2.new(),
+            ScrollDelta = 0,
+        }
+        
+        local NAV_KEYBOARD_SPEED = Vector3.new(1, 1, 1)
+        local PAN_MOUSE_SPEED = Vector2.new(1, 1)*(math.pi/64)
+        local NAV_ADJ_SPEED = 0.75
+        local NAV_SHIFT_MUL = 0.25
+        local SCROLL_SPEED_MULTIPLIER = 0.1
+        local navSpeed = 1
+        
+        local function InputVel(dt)
+            if mouse.ScrollDelta ~= 0 then
+                navSpeed = math.clamp(navSpeed + mouse.ScrollDelta * SCROLL_SPEED_MULTIPLIER, 0.01, 4)
+                mouse.ScrollDelta = 0
+            end
+            navSpeed = math.clamp(navSpeed + dt*(keyboard.Up - keyboard.Down)*NAV_ADJ_SPEED, 0.01, 4)
+            local kKeyboard = Vector3.new(
+                keyboard.D - keyboard.A,
+                keyboard.E - keyboard.Q,
+                keyboard.S - keyboard.W
+            )*NAV_KEYBOARD_SPEED
+            local shift = uis:IsKeyDown(Enum.KeyCode.LeftShift)
+            return (kKeyboard)*(navSpeed*(shift and NAV_SHIFT_MUL or 1))
+        end
+        
+        local function InputPan(dt)
+            local kMouse = mouse.Delta*PAN_MOUSE_SPEED
+            mouse.Delta = Vector2.new()
+            return kMouse
+        end
+        
+        local function Keypress(action, state, input)
+            keyboard[input.KeyCode.Name] = state == Enum.UserInputState.Begin and 1 or 0
+            return Enum.ContextActionResult.Sink
+        end
+        
+        local function MousePan(action, state, input)
+            local delta = input.Delta
+            mouse.Delta = Vector2.new(-delta.y, -delta.x)
+            return Enum.ContextActionResult.Sink
+        end
+        
+        local function MouseScroll(action, state, input)
+            if input.UserInputType == Enum.UserInputType.MouseWheel then
+                mouse.ScrollDelta = mouse.ScrollDelta + input.Position.Z
+                return Enum.ContextActionResult.Sink
+            end
+            return Enum.ContextActionResult.Pass
+        end
+        
+        local function Zero(t)
+            for k, v in pairs(t) do
+                t[k] = v*0
+            end
+        end
+        
+        local function StartCapture()
+            ContextActionService:BindActionAtPriority("FreecamKeyboard", Keypress, false, INPUT_PRIORITY,
+                Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
+                Enum.KeyCode.E, Enum.KeyCode.Q, Enum.KeyCode.Up, Enum.KeyCode.Down
+            )
+            ContextActionService:BindActionAtPriority("FreecamMousePan", MousePan, false, INPUT_PRIORITY, Enum.UserInputType.MouseMovement)
+            ContextActionService:BindActionAtPriority("FreecamMouseScroll", MouseScroll, false, INPUT_PRIORITY, Enum.UserInputType.MouseWheel)
+        end
+        
+        local function StopCapture()
+            navSpeed = 1
+            Zero(keyboard)
+            mouse.Delta = Vector2.new()
+            mouse.ScrollDelta = 0
+            ContextActionService:UnbindAction("FreecamKeyboard")
+            ContextActionService:UnbindAction("FreecamMousePan")
+            ContextActionService:UnbindAction("FreecamMouseScroll")
+        end
+        
+        local function GetFocusDistance(cameraFrame)
+            local znear = 0.1
+            local viewport = Camera.ViewportSize
+            local projy = 2*math.tan(cameraFov/2)
+            local projx = viewport.x/viewport.y*projy
+            local fx = cameraFrame.rightVector
+            local fy = cameraFrame.upVector
+            local fz = cameraFrame.lookVector
+            local minVect = Vector3.new()
+            local minDist = 512
+            for x = 0, 1, 0.5 do
+                for y = 0, 1, 0.5 do
+                    local cx = (x - 0.5)*projx
+                    local cy = (y - 0.5)*projy
+                    local offset = fx*cx - fy*cy + fz
+                    local origin = cameraFrame.p + offset*znear
+                    local _, hit = workspace:FindPartOnRay(Ray.new(origin, offset.unit*minDist))
+                    local dist = (hit - origin).magnitude
+                    if minDist > dist then
+                        minDist = dist
+                        minVect = offset.unit
+                    end
+                end
+            end
+            return fz:Dot(minVect)*minDist
+        end
+
+        local function StepFreecam(dt)
+            local vel = velSpring:Update(dt, InputVel(dt))
+            local pan = panSpring:Update(dt, InputPan(dt))
+            local zoomFactor = math.sqrt(math.tan(math.rad(70/2))/math.tan(math.rad(cameraFov/2)))
+            cameraRot = cameraRot + pan*Vector2.new(0.75, 1)*8*(dt/zoomFactor)
+            cameraRot = Vector2.new(math.clamp(cameraRot.x, -math.rad(90), math.rad(90)), cameraRot.y%(2*math.pi))
+            local cameraCFrame = CFrame.new(cameraPos)*CFrame.fromOrientation(cameraRot.x, cameraRot.y, 0)*CFrame.new(vel*Vector3.new(1, 1, 1)*64*dt)
+            cameraPos = cameraCFrame.p
+            Camera.CFrame = cameraCFrame
+            Camera.Focus = cameraCFrame*CFrame.new(0, 0, -GetFocusDistance(cameraCFrame))
+            Camera.FieldOfView = cameraFov
+        end
+        
+        local savedMouseBehavior = nil
+        local savedMouseIconEnabled = nil
+        local savedCameraType = nil
+        local savedCameraFocus = nil
+        local savedCameraCFrame = nil
+        local savedCameraFieldOfView = nil
+        
+        local function PushState()
+            savedCameraFieldOfView = Camera.FieldOfView
+            Camera.FieldOfView = 70
+            savedCameraType = Camera.CameraType
+            Camera.CameraType = Enum.CameraType.Custom
+            savedCameraCFrame = Camera.CFrame
+            savedCameraFocus = Camera.Focus
+            savedMouseIconEnabled = uis.MouseIconEnabled
+            uis.MouseIconEnabled = true
+            savedMouseBehavior = uis.MouseBehavior
+            uis.MouseBehavior = Enum.MouseBehavior.Default
+        end
+        
+        local function PopState()
+            Camera.FieldOfView = 70
+            if savedCameraType then
+                Camera.CameraType = savedCameraType
+                savedCameraType = nil
+            end
+            if savedCameraCFrame then
+                Camera.CFrame = savedCameraCFrame
+                savedCameraCFrame = nil
+            end
+            if savedCameraFocus then
+                Camera.Focus = savedCameraFocus
+                savedCameraFocus = nil
+            end
+            if savedMouseIconEnabled ~= nil then
+                uis.MouseIconEnabled = savedMouseIconEnabled
+                savedMouseIconEnabled = nil
+            end
+            if savedMouseBehavior then
+                uis.MouseBehavior = savedMouseBehavior
+                savedMouseBehavior = nil
+            end
+        end
+        
+        local function StartFreecam(pos)
+            if fcRunning then
+                StopFreecam()
+            end
+            local cameraCFrame = Camera.CFrame
+            if pos then
+                cameraCFrame = pos
+            end
+            cameraRot = Vector2.new()
+            cameraPos = cameraCFrame.p
+            cameraFov = Camera.FieldOfView
+            velSpring:Reset(Vector3.new())
+            panSpring:Reset(Vector2.new())
+            PushState()
+            rs:BindToRenderStep("Freecam", Enum.RenderPriority.Camera.Value, StepFreecam)
+            StartCapture()
+            fcRunning = true
+        end
+        
+        local function StopFreecam()
+            if not fcRunning then return end
+            StopCapture()
+            rs:UnbindFromRenderStep("Freecam")
+            PopState()
+            workspace.Camera.FieldOfView = 70
+            fcRunning = false
+        end
+        
+        Components.CreateToggle(contents.TELEPORT, "FREECAM", false, function(st)
+            if st then
+                StartFreecam()
+            else
+                StopFreecam()
+            end
+        end)
+    end
 
     Components.CreateLabel(contents["TROLL"], "TROLL FEATURES", Config.Theme.Accent)
     
@@ -8211,11 +8462,9 @@ end)
 if not success then
 end
 
-
 if not _G.CurrentKeybind then
     _G.CurrentKeybind = Enum.KeyCode.RightControl
 end
-
 
 if _G.Key1 then
     _G.Key1:Disconnect()
