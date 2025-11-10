@@ -13,8 +13,6 @@
         nakaw gusto? aral ayaw?
 
 ]]--
-
-
 if not game then
     return
 end
@@ -101,7 +99,7 @@ local function createLoadingScreen()
     title.BackgroundTransparency = 1
     title.Font = Enum.Font.GothamBold
     title.RichText = true
-    title.Text = '<font color="rgb(255,255,255)" stroke="rgb(200,200,255)" strokeThickness="2">SAINT v1.</font><font color="rgb(255,0,0)">1</font>'
+    title.Text = '<font color="rgb(255,255,255)" stroke="rgb(200,200,255)" strokeThickness="2">SAINT v1.</font><font color="rgb(255,0,0)">2</font>'
     title.TextSize = 48
     title.TextStrokeTransparency = 0.2
     title.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
@@ -636,7 +634,7 @@ function GUI.CreateTopBar(parent)
     title.Position = UDim2.new(0, 15, 0, 0)
     title.BackgroundTransparency = 1
     title.RichText = true
-    title.Text = '<font color="rgb(255,255,255)">SAINT v1.</font><font color="rgb(255,0,0)">1</font>'
+    title.Text = '<font color="rgb(255,255,255)">SAINT v1.</font><font color="rgb(255,0,0)">2</font>'
     title.TextColor3 = Config.Theme.Text
     title.TextSize = 18
     title.Font = Enum.Font.GothamBold
@@ -4783,6 +4781,580 @@ function Menu.Build()
     end
 
     Components.CreateLabel(contents["TROLL"], "TROLL FEATURES", Config.Theme.Accent)
+    
+    -- Big Head Module
+    do
+        local BigHeadPlayers = ps
+        local BigHeadRunService = rs
+        local BigHeadLocalPlayer = lp
+        
+        local BigHeadEnabled = false
+        local BigHeadSize = 3
+        local BigHeadTargetPlayers = {}
+        local BigHeadModifiedHeads = {}
+        
+        local function BigHeadResizeHead(character, headSize)
+            if not character then return end
+            
+            local humanoid = character:WaitForChild("Humanoid", 10)
+            if not humanoid then return end
+            
+            local head = character:FindFirstChild("Head")
+            if not head then return end
+            
+            local player = BigHeadPlayers:GetPlayerFromCharacter(character)
+            if not player then return end
+            
+            -- Skip local player - don't resize their head
+            if player == BigHeadLocalPlayer then
+                return
+            end
+            
+            local hasTargets = false
+            for _ in pairs(BigHeadTargetPlayers) do
+                hasTargets = true
+                break
+            end
+            
+            if hasTargets and not BigHeadTargetPlayers[player.UserId] then
+                if BigHeadModifiedHeads[character] then
+                    local data = BigHeadModifiedHeads[character]
+                    if data.head and data.head.Parent then
+                        data.head.Size = data.originalSize
+                        local mesh = data.head:FindFirstChildOfClass("SpecialMesh")
+                        if mesh and data.originalMesh then
+                            mesh.Scale = data.originalMesh
+                        end
+                    end
+                    BigHeadModifiedHeads[character] = nil
+                end
+                return
+            end
+            
+            if BigHeadModifiedHeads[character] then
+                local oldData = BigHeadModifiedHeads[character]
+                if oldData.head and oldData.head.Parent then
+                    oldData.head.Size = oldData.originalSize
+                    local mesh = oldData.head:FindFirstChildOfClass("SpecialMesh")
+                    if mesh and oldData.originalMesh then
+                        mesh.Scale = oldData.originalMesh
+                    end
+                end
+                BigHeadModifiedHeads[character] = nil
+            end
+            
+            if not BigHeadEnabled then return end
+            
+            local originalSize = head.Size
+            local originalMesh = head:FindFirstChildOfClass("SpecialMesh")
+            local originalMeshScale = originalMesh and originalMesh.Scale or Vector3.new(1, 1, 1)
+            
+            head.CanTouch = true
+            head.CanCollide = false
+            
+            head.Size = Vector3.new(
+                originalSize.X * headSize,
+                originalSize.Y * headSize,
+                originalSize.Z * headSize
+            )
+            
+            if originalMesh then
+                originalMesh.Scale = Vector3.new(
+                    originalMeshScale.X * headSize,
+                    originalMeshScale.Y * headSize,
+                    originalMeshScale.Z * headSize
+                )
+            else
+                local mesh = Instance.new("SpecialMesh")
+                mesh.MeshType = Enum.MeshType.Head
+                mesh.Scale = Vector3.new(headSize, headSize, headSize)
+                mesh.Parent = head
+            end
+            
+            BigHeadModifiedHeads[character] = {
+                head = head,
+                originalSize = originalSize,
+                originalMesh = originalMeshScale,
+                player = player,
+                targetSize = headSize
+            }
+        end
+        
+        local function BigHeadRestoreHead(character)
+            if not character then return end
+            if BigHeadModifiedHeads[character] then
+                local data = BigHeadModifiedHeads[character]
+                if data.head and data.head.Parent then
+                    data.head.Size = data.originalSize
+                    local mesh = data.head:FindFirstChildOfClass("SpecialMesh")
+                    if mesh then
+                        mesh.Scale = data.originalMesh
+                    end
+                end
+                BigHeadModifiedHeads[character] = nil
+            end
+        end
+        
+        local function BigHeadUpdateAllHeadSizes()
+            for character, data in pairs(BigHeadModifiedHeads) do
+                if character and character.Parent and data.head and data.head.Parent then
+                    local head = data.head
+                    local originalSize = data.originalSize
+                    local originalMesh = data.originalMesh
+                    
+                    -- Update target size
+                    data.targetSize = BigHeadSize
+                    
+                    -- Ensure CanTouch is enabled
+                    head.CanTouch = true
+                    
+                    -- Update hitbox size
+                    head.Size = Vector3.new(
+                        originalSize.X * BigHeadSize,
+                        originalSize.Y * BigHeadSize,
+                        originalSize.Z * BigHeadSize
+                    )
+                    
+                    -- Update visual mesh
+                    local mesh = head:FindFirstChildOfClass("SpecialMesh")
+                    if mesh and originalMesh then
+                        mesh.Scale = Vector3.new(
+                            originalMesh.X * BigHeadSize,
+                            originalMesh.Y * BigHeadSize,
+                            originalMesh.Z * BigHeadSize
+                        )
+                    end
+                end
+            end
+        end
+        
+        local BigHeadConnections = {}
+        local function BigHeadSetupConnections()
+            -- Cleanup connections first (non-blocking)
+            for _, connection in pairs(BigHeadConnections) do
+                if connection then
+                    connection:Disconnect()
+                end
+            end
+            BigHeadConnections = {}
+            
+            if BigHeadEnabled then
+                -- Setup connections immediately
+                table.insert(BigHeadConnections, BigHeadPlayers.PlayerAdded:Connect(function(player)
+                    player.CharacterAdded:Connect(function(character)
+                        task.wait(1)
+                        if BigHeadEnabled then
+                            BigHeadResizeHead(character, BigHeadSize)
+                        end
+                    end)
+                end))
+                
+                -- Apply to existing players asynchronously to prevent delay
+                task.spawn(function()
+                    for _, player in pairs(BigHeadPlayers:GetPlayers()) do
+                        if player.Character then
+                            task.wait(0.1)
+                            if BigHeadEnabled then
+                                BigHeadResizeHead(player.Character, BigHeadSize)
+                            end
+                        end
+                        player.CharacterAdded:Connect(function(character)
+                            task.wait(1)
+                            if BigHeadEnabled then
+                                BigHeadResizeHead(character, BigHeadSize)
+                            end
+                        end)
+                    end
+                end)
+                
+                table.insert(BigHeadConnections, BigHeadRunService.Heartbeat:Connect(function()
+                    local hasTargets = false
+                    for _ in pairs(BigHeadTargetPlayers) do
+                        hasTargets = true
+                        break
+                    end
+                    
+                    -- Continuously maintain head sizes to prevent Roblox from resetting them
+                    for character, data in pairs(BigHeadModifiedHeads) do
+                        if character and character.Parent and data.head and data.head.Parent then
+                            local head = data.head
+                            local originalSize = data.originalSize
+                            local targetSize = data.targetSize or BigHeadSize
+                            
+                            -- Continuously reapply size to prevent reset
+                            if head.Size ~= Vector3.new(
+                                originalSize.X * targetSize,
+                                originalSize.Y * targetSize,
+                                originalSize.Z * targetSize
+                            ) then
+                                head.CanTouch = true
+                                head.Size = Vector3.new(
+                                    originalSize.X * targetSize,
+                                    originalSize.Y * targetSize,
+                                    originalSize.Z * targetSize
+                                )
+                            end
+                            
+                            -- Maintain mesh scale
+                            local mesh = head:FindFirstChildOfClass("SpecialMesh")
+                            if mesh and data.originalMesh then
+                                local targetMeshScale = Vector3.new(
+                                    data.originalMesh.X * targetSize,
+                                    data.originalMesh.Y * targetSize,
+                                    data.originalMesh.Z * targetSize
+                                )
+                                if mesh.Scale ~= targetMeshScale then
+                                    mesh.Scale = targetMeshScale
+                                end
+                            end
+                        end
+                    end
+                    
+                    for _, player in pairs(BigHeadPlayers:GetPlayers()) do
+                        if player.Character then
+                            local shouldHaveBigHead = not hasTargets or BigHeadTargetPlayers[player.UserId]
+                            local hasBigHead = BigHeadModifiedHeads[player.Character] ~= nil
+                            
+                            if shouldHaveBigHead and not hasBigHead then
+                                BigHeadResizeHead(player.Character, BigHeadSize)
+                            elseif not shouldHaveBigHead and hasBigHead then
+                                BigHeadRestoreHead(player.Character)
+                            end
+                        end
+                    end
+                end))
+            else
+                -- Restore heads immediately (non-blocking)
+                task.spawn(function()
+                    for character, _ in pairs(BigHeadModifiedHeads) do
+                        BigHeadRestoreHead(character)
+                    end
+                    BigHeadModifiedHeads = {}
+                end)
+                
+                -- Also restore local player's head if it was modified
+                if BigHeadLocalPlayer.Character then
+                    BigHeadRestoreHead(BigHeadLocalPlayer.Character)
+                end
+            end
+        end
+        
+        Components.CreateButton(contents["TROLL"], "BIG HEAD", function()
+            local existingGui = _G.BigHeadGui
+            if existingGui then
+                existingGui:Destroy()
+            end
+            
+            local sg = Instance.new("ScreenGui")
+            sg.Name = math.random(10000,99999)
+            _G.BigHeadGui = sg
+            sg.ResetOnSpawn = false
+            sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            sg.Parent = pg
+
+            local md = Instance.new("Frame")
+            md.Size = UDim2.new(0, 260, 0, 180)
+            md.Position = UDim2.new(0.5, -130, 0.5, -90)
+            md.AnchorPoint = Vector2.new(0.5, 0.5)
+            md.BackgroundColor3 = Config.Theme.Primary
+            md.BorderSizePixel = 0
+            md.ClipsDescendants = true
+            md.Active = true
+            md.Parent = sg
+            Utils.RoundCorners(md, 12)
+            Utils.AddStroke(md, Config.Theme.Border, 2)
+
+            local gradientBg = Instance.new("Frame")
+            gradientBg.Name = "GradientBg"
+            gradientBg.Size = UDim2.new(1, 0, 1, 0)
+            gradientBg.BackgroundColor3 = Config.Theme.Primary
+            gradientBg.BackgroundTransparency = 0.5
+            gradientBg.BorderSizePixel = 0
+            gradientBg.ZIndex = 1
+            gradientBg.Parent = md
+            Utils.CreateGradient(gradientBg, Color3.fromRGB(2, 2, 2), Color3.fromRGB(0, 0, 0), 45)
+            Utils.RoundCorners(gradientBg, 12)
+
+            local titleBar = Instance.new("Frame")
+            titleBar.Name = "TitleBar"
+            titleBar.Size = UDim2.new(1, 0, 0, 32)
+            titleBar.Position = UDim2.new(0, 0, 0, 0)
+            titleBar.BackgroundColor3 = Config.Theme.Secondary
+            titleBar.BackgroundTransparency = 0.3
+            titleBar.BorderSizePixel = 0
+            titleBar.Active = true
+            titleBar.ZIndex = 10
+            titleBar.ClipsDescendants = false
+            titleBar.Parent = md
+            Utils.RoundCorners(titleBar, 12)
+            
+            -- Close button first (so it's behind title text but still visible)
+            local cb = Instance.new("TextButton")
+            cb.Name = "CloseBtn"
+            cb.Size = UDim2.new(0, 26, 0, 26)
+            cb.Position = UDim2.new(1, -30, 0, 3)
+            cb.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+            cb.BorderSizePixel = 0
+            cb.Text = "x"
+            cb.TextColor3 = Color3.fromRGB(255, 255, 255)
+            cb.TextSize = 15
+            cb.Font = Enum.Font.GothamBold
+            cb.AutoButtonColor = false
+            cb.ZIndex = 20
+            cb.Parent = titleBar
+            Utils.RoundCorners(cb, 4)
+            
+            local tl = Instance.new("TextLabel")
+            tl.Name = "Title"
+            tl.Size = UDim2.new(1, -65, 1, 0)
+            tl.Position = UDim2.new(0, 8, 0, 0)
+            tl.BackgroundTransparency = 1
+            tl.Text = "BIG HEAD"
+            tl.TextColor3 = Config.Theme.Text
+            tl.TextSize = 12
+            tl.Font = Enum.Font.GothamBold
+            tl.TextXAlignment = Enum.TextXAlignment.Left
+            tl.Active = true
+            tl.ZIndex = 11
+            tl.Parent = titleBar
+            
+            -- Hover effect for close button
+            cb.MouseEnter:Connect(function()
+                cb.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+            end)
+            
+            cb.MouseLeave:Connect(function()
+                cb.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            end)
+
+            cb.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    input:Capture()
+                end
+            end)
+
+            Utils.MakeDraggable(md, md)
+
+            local toggleFrame = Instance.new("Frame")
+            toggleFrame.Name = "ToggleFrame"
+            toggleFrame.Size = UDim2.new(1, -16, 0, 40)
+            toggleFrame.Position = UDim2.new(0, 8, 0, 38)
+            toggleFrame.BackgroundColor3 = Config.Theme.Secondary
+            toggleFrame.BackgroundTransparency = 0.5
+            toggleFrame.BorderSizePixel = 0
+            toggleFrame.Parent = md
+            Utils.RoundCorners(toggleFrame, 6)
+
+            local toggleLabel = Instance.new("TextLabel")
+            toggleLabel.Name = "Label"
+            toggleLabel.Size = UDim2.new(1, -70, 1, 0)
+            toggleLabel.Position = UDim2.new(0, 8, 0, 0)
+            toggleLabel.BackgroundTransparency = 1
+            toggleLabel.Text = "ENABLED"
+            toggleLabel.TextColor3 = Config.Theme.Text
+            toggleLabel.TextSize = 11
+            toggleLabel.Font = Enum.Font.GothamMedium
+            toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            toggleLabel.Parent = toggleFrame
+
+            local toggleBtn = Instance.new("TextButton")
+            toggleBtn.Name = "Toggle"
+            toggleBtn.Size = UDim2.new(0, 55, 0, 26)
+            toggleBtn.Position = UDim2.new(1, -60, 0.5, -13)
+            toggleBtn.BackgroundColor3 = BigHeadEnabled and Config.Theme.Accent or Config.Theme.Border
+            toggleBtn.BorderSizePixel = 0
+            toggleBtn.Text = BigHeadEnabled and "ON" or "OFF"
+            toggleBtn.TextColor3 = Config.Theme.Text
+            toggleBtn.TextSize = 11
+            toggleBtn.Font = Enum.Font.GothamBold
+            toggleBtn.Parent = toggleFrame
+            Utils.RoundCorners(toggleBtn, 5)
+
+            local function updateToggleButton()
+                if BigHeadEnabled then
+                    toggleBtn.Text = "ON"
+                    toggleBtn.BackgroundColor3 = Config.Theme.Accent
+                    toggleLabel.Text = "ENABLED"
+                else
+                    toggleBtn.Text = "OFF"
+                    toggleBtn.BackgroundColor3 = Config.Theme.Border
+                    toggleLabel.Text = "DISABLED"
+                end
+            end
+
+            toggleBtn.MouseButton1Click:Connect(function()
+                BigHeadEnabled = not BigHeadEnabled
+                updateToggleButton()
+                task.spawn(function() 
+                    BigHeadSetupConnections()
+                end)
+            end)
+
+            toggleBtn.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    input:Capture()
+                end
+            end)
+
+            local sliderContainer = Instance.new("Frame")
+            sliderContainer.Name = "SliderContainer"
+            sliderContainer.Size = UDim2.new(1, -16, 0, 45)
+            sliderContainer.Position = UDim2.new(0, 8, 0, 86)
+            sliderContainer.BackgroundColor3 = Config.Theme.Primary
+            sliderContainer.BackgroundTransparency = 0.3
+            sliderContainer.BorderSizePixel = 0
+            sliderContainer.Parent = md
+            Utils.RoundCorners(sliderContainer, 6)
+
+            local sliderLabel = Instance.new("TextLabel")
+            sliderLabel.Name = "Label"
+            sliderLabel.Size = UDim2.new(1, -65, 0, 18)
+            sliderLabel.Position = UDim2.new(0, 8, 0, 4)
+            sliderLabel.BackgroundTransparency = 1
+            sliderLabel.Text = "HEAD SIZE"
+            sliderLabel.TextColor3 = Config.Theme.Text
+            sliderLabel.TextSize = 11
+            sliderLabel.Font = Enum.Font.GothamMedium
+            sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+            sliderLabel.Parent = sliderContainer
+
+            local valueLabel = Instance.new("TextLabel")
+            valueLabel.Name = "ValueLabel"
+            valueLabel.Size = UDim2.new(0, 50, 0, 18)
+            valueLabel.Position = UDim2.new(1, -55, 0, 4)
+            valueLabel.BackgroundTransparency = 1
+            valueLabel.Text = tostring(BigHeadSize)
+            valueLabel.TextColor3 = Config.Theme.Accent
+            valueLabel.TextSize = 12
+            valueLabel.Font = Enum.Font.GothamBold
+            valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+            valueLabel.Parent = sliderContainer
+
+            local sliderBack = Instance.new("Frame")
+            sliderBack.Name = "SliderBack"
+            sliderBack.Size = UDim2.new(1, -24, 0, 5)
+            sliderBack.Position = UDim2.new(0, 12, 1, -16)
+            sliderBack.BackgroundColor3 = Config.Theme.Border
+            sliderBack.BorderSizePixel = 0
+            sliderBack.Parent = sliderContainer
+            Utils.RoundCorners(sliderBack, 3)
+
+            local sliderFill = Instance.new("Frame")
+            sliderFill.Name = "SliderFill"
+            sliderFill.Size = UDim2.new((BigHeadSize - 1) / 9, 0, 1, 0)
+            sliderFill.BackgroundColor3 = Config.Theme.Accent
+            sliderFill.BorderSizePixel = 0
+            sliderFill.Parent = sliderBack
+            Utils.RoundCorners(sliderFill, 3)
+
+            local sliderHandle = Instance.new("Frame")
+            sliderHandle.Name = "SliderHandle"
+            sliderHandle.Size = UDim2.new(0, 16, 0, 16)
+            sliderHandle.Position = UDim2.new((BigHeadSize - 1) / 9, 0, 0.5, 0)
+            sliderHandle.AnchorPoint = Vector2.new(0.5, 0.5)
+            sliderHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            sliderHandle.BorderSizePixel = 0
+            sliderHandle.ZIndex = 2
+            sliderHandle.Parent = sliderBack
+            Utils.RoundCorners(sliderHandle, 8)
+
+            local dragging = false
+            local inputChangedConnection
+            local inputEndedConnection
+
+            if not _G.SliderDragging then
+                _G.SliderDragging = {}
+            end
+            
+            local function updateSlider(value)
+                value = math.clamp(math.floor(value * 10) / 10, 1, 10)
+                BigHeadSize = value
+                valueLabel.Text = tostring(value)
+                local ratio = (value - 1) / 9
+                sliderFill.Size = UDim2.new(ratio, 0, 1, 0)
+                sliderHandle.Position = UDim2.new(ratio, 0, 0.5, 0)
+                
+                if BigHeadEnabled then
+                    BigHeadUpdateAllHeadSizes()
+                    for _, player in pairs(BigHeadPlayers:GetPlayers()) do
+                        if player.Character then
+                            BigHeadResizeHead(player.Character, BigHeadSize)
+                        end
+                    end
+                end
+            end
+
+            sliderBack.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    _G.SliderDragging[sliderContainer] = true -- Set global flag to prevent modal dragging
+                    input:Capture()
+                    local mousePos = uis:GetMouseLocation()
+                    local trackPos = sliderBack.AbsolutePosition
+                    local trackSize = sliderBack.AbsoluteSize
+                    local relativeX = math.clamp((mousePos.X - trackPos.X) / trackSize.X, 0, 1)
+                    local value = 1 + (relativeX * 9)
+                    updateSlider(value)
+                end
+            end)
+
+            sliderHandle.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    _G.SliderDragging[sliderContainer] = true -- Set global flag to prevent modal dragging
+                    input:Capture()
+                end
+            end)
+
+            sliderContainer.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    _G.SliderDragging[sliderContainer] = true
+                    input:Capture()
+                end
+            end)
+
+            inputChangedConnection = uis.InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local mousePos = uis:GetMouseLocation()
+                    local trackPos = sliderBack.AbsolutePosition
+                    local trackSize = sliderBack.AbsoluteSize
+                    local relativeX = math.clamp((mousePos.X - trackPos.X) / trackSize.X, 0, 1)
+                    local value = 1 + (relativeX * 9)
+                    updateSlider(value)
+                end
+            end)
+
+            inputEndedConnection = uis.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                    _G.SliderDragging[sliderContainer] = false -- Clear global flag
+                end
+            end)
+
+            -- Cleanup function
+            local function cleanup()
+                if inputChangedConnection then
+                    inputChangedConnection:Disconnect()
+                    inputChangedConnection = nil
+                end
+                if inputEndedConnection then
+                    inputEndedConnection:Disconnect()
+                    inputEndedConnection = nil
+                end
+
+                if _G.SliderDragging and _G.SliderDragging[sliderContainer] then
+                    _G.SliderDragging[sliderContainer] = nil
+                end
+            end
+
+            cb.MouseButton1Click:Connect(function()
+                cleanup()
+                sg:Destroy()
+            end)
+
+            updateToggleButton()
+        end)
+    end
     
     Components.CreateButton(contents["TROLL"], "FLING ALL", function()
 
