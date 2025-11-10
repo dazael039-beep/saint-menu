@@ -12,7 +12,8 @@
                                                                                                                                                                   
         nakaw gusto? aral ayaw?
 
-]]--
+]]
+
 if not game then
     return
 end
@@ -6570,28 +6571,70 @@ function Menu.Build()
                 )
             end},
             {text = "Silenced Pistol", callback = function()
-                local args = {0, "Silenced Pistol"}
-                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+                Components.CreateGunModal("CAVITE RP",
+                    function()
+                        return game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy")
+                    end,
+                    function(gunName)
+                        return {0, "Silenced Pistol"}
+                    end,
+                    "Silenced Pistol"
+                )
             end},
             {text = "Skorpion", callback = function()
-                local args = {0, "Skorpion"}
-                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+                Components.CreateGunModal("CAVITE RP",
+                    function()
+                        return game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy")
+                    end,
+                    function(gunName)
+                        return {0, "Skorpion"}
+                    end,
+                    "Skorpion"
+                )
             end},
             {text = "Tactical Knife", callback = function()
-                local args = {0, "Tactical Knife"}
-                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+                Components.CreateGunModal("CAVITE RP",
+                    function()
+                        return game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy")
+                    end,
+                    function(gunName)
+                        return {0, "Tactical Knife"}
+                    end,
+                    "Tactical Knife"
+                )
             end},
             {text = "Heavy Vest", callback = function()
-                local args = {0, "Heavy Vest"}
-                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+                Components.CreateGunModal("CAVITE RP",
+                    function()
+                        return game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy")
+                    end,
+                    function(gunName)
+                        return {0, "Heavy Vest"}
+                    end,
+                    "Heavy Vest"
+                )
             end},
             {text = "Heavy Helmet", callback = function()
-                local args = {0, "Heavy Helmet"}
-                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+                Components.CreateGunModal("CAVITE RP",
+                    function()
+                        return game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy")
+                    end,
+                    function(gunName)
+                        return {0, "Heavy Helmet"}
+                    end,
+                    "Heavy Helmet"
+                )
             end},
             {text = "MEDKIT", callback = function()
-                local args = {0, "MEDKIT"}
-                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+                Components.CreateGunModal("CAVITE RP",
+                    function()
+                        return game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy")
+                    end,
+                    function(gunName)
+                        return {0, "MEDKIT"}
+                    end,
+                    "MEDKIT"
+                )
             end}
         })
     end)
