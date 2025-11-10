@@ -6568,6 +6568,30 @@ function Menu.Build()
                     end,
                     "Glock-17"
                 )
+            end},
+            {text = "Silenced Pistol", callback = function()
+                local args = {0, "Silenced Pistol"}
+                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+            end},
+            {text = "Skorpion", callback = function()
+                local args = {0, "Skorpion"}
+                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+            end},
+            {text = "Tactical Knife", callback = function()
+                local args = {0, "Tactical Knife"}
+                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+            end},
+            {text = "Heavy Vest", callback = function()
+                local args = {0, "Heavy Vest"}
+                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+            end},
+            {text = "Heavy Helmet", callback = function()
+                local args = {0, "Heavy Helmet"}
+                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
+            end},
+            {text = "MEDKIT", callback = function()
+                local args = {0, "MEDKIT"}
+                game:GetService("ReplicatedStorage"):WaitForChild("BM_Storage"):WaitForChild("Remotes"):WaitForChild("Buy"):FireServer(unpack(args))
             end}
         })
     end)
